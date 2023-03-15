@@ -1,7 +1,15 @@
 #!/usr/bin/env node
 import { style } from 'kleur-template'
+import pLimit from 'p-limit'
+import { intro, note, outro, select } from '@clack/prompts'
+import { marked } from 'marked'
+import TerminalRenderer from 'marked-terminal'
+import clipboard from 'clipboardy'
+import minimist from 'minimist'
 import { $, hasBinary } from './command'
 import { handle } from './util'
+import { summarizeDiff, summarizePullRequest } from './api'
+import { createBar } from './progress'
 const { log } = console
 
 async function getGitDiff() {
@@ -15,72 +23,72 @@ async function getGitDiff() {
         log(style`[Not in a git repository](red.bold)`)
         process.exit(1)
     }
-    // Check if there are any changes
-    const gitDiff = await handle($('git diff'))
+    // List all the files that have been changed compared to main
+    const gitDiff = await handle($('git diff --name-only main'))
     if (gitDiff.error) {
-        log(style`[No changes to commit](red.bold)`)
+        log(style`[Error getting git diff](red.bold)`)
+        log(style`[Error: ${gitDiff.error.message}](gray)`)
         process.exit(1)
     }
-    return gitDiff.data
+    // Get the diff for each file
+    const files = gitDiff.data.split('\n').filter(Boolean)
+    const gitDiffFiles = await Promise.all(files.map(async (file) => {
+        const gitDiffFile = await handle($(`git diff main -- ${file}`))
+        if (gitDiffFile.error) {
+            log(style`[Error getting git diff for ${file}](red.bold)`)
+            log(style`[Error: ${gitDiffFile.error.message}](gray)`)
+            process.exit(1)
+        }
+        return {
+            file,
+            diff: gitDiffFile.data,
+            tokens: gitDiffFile.data.length / 4,
+        }
+    }))
+    return gitDiffFiles.filter(({ tokens }) => tokens > 0 && tokens < 3000)
 }
 
-function main() {
-    // getGitDiff().then(console.log)
+async function main() {
+    const args = minimist(process.argv.slice(2))
+    const gitDiffFiles = await getGitDiff()
+    const limit = pLimit(10)
+    intro('deto')
+    note(`Summarizing ${gitDiffFiles.length} files.`)
+
+    const diffProgress = createBar({ barSize: 15, format: '→ {bar} Understanding changes' })
+    diffProgress.start(gitDiffFiles.length, 0)
+    const diffSummaryList = await Promise.all(gitDiffFiles.map(async (gitDiffFile) => {
+        const { diff } = gitDiffFile
+        const summary = await limit(() => summarizeDiff(diff))
+        diffProgress.increment()
+        return summary
+    }))
+    diffProgress.stop()
+
+    const summaryProgress = createBar({ barSize: 15, format: '→ {bar} Summarizing changes', pulse: true })
+    summaryProgress.start(1, 0)
+    const pullRequestSummary = await summarizePullRequest(diffSummaryList, args.t)
+    summaryProgress.increment()
+    summaryProgress.stop()
+
+    const renderer = new TerminalRenderer()
+    marked.setOptions({
+        renderer,
+    })
+
+    log(`\n${marked(pullRequestSummary)}\n`)
+
+    const copyToClipboard = await select({
+        message: 'Do you want to copy this summary to your clipboard?',
+        options: [{ label: 'Yes', value: true }, { label: 'No', value: false }],
+    })
+
+    if (copyToClipboard) {
+        clipboard.writeSync(pullRequestSummary)
+        note('Copied to clipboard!')
+    }
+
+    outro('bye bye!')
 }
 
 main()
-
-// function createClient(systemMessage: string) {
-//     const client = new ChatGPTAPI({
-//         apiKey: process.env.OPENAI_API_KEY || '',
-//         systemMessage,
-//     })
-//     return client
-// }
-
-// function formatMessage(diff: string) {
-//     return [
-//         '## Diff',
-//         '```diff',
-//         diff,
-//         '```',
-//         '## Summary',
-//     ].filter(Boolean).join('\n')
-// }
-
-// export default async function main() {
-//     const files = CommitDiff.split('diff --git').filter(Boolean).map(file => (`diff --git${file}`).trim())
-//     const diffSummarizer = createClient([
-//         'You\'re a world expert machine on summarizing diffs and pull requests.',
-//         'The user will provide the diff of a file per message, on order of appearance, and you\'ll summarize it.',
-//         'Use the context of the previous messages to understand the diff.',
-//         'The user will send a final message to ask for the summary of the pull request.',
-//     ].join(' '))
-//     let lastMessageId = ''
-//     const context = []
-
-//     for (const file of files) {
-//         const message = formatMessage(file)
-//         const response = await diffSummarizer.sendMessage(
-//             message,
-//             { parentMessageId: lastMessageId },
-//         )
-//         lastMessageId = response.id
-//         context.push(response.text)
-//         console.log(`${response.text}\n\n`)
-//     }
-
-//     const pullRequestSummarizer = createClient([
-//         'You\'re a world expert machine on summarizing pull requests.',
-//         'The user will provide a list of changes.',
-//         'Summarize the changes in a way thats easy to understand.',
-//         'Both product and engineering teams will use this summary to understand the changes.',
-//         'Explain following this format:\n## what\n## why\n## how',
-//     ].join(' '))
-//     const response = await pullRequestSummarizer.sendMessage(
-//         context.map(change => `- ${change}`).join('\n\n'),
-//     )
-//     console.log(`### SUMMARY ###\n\n${response.text}\n\n`)
-// }
-
-// main()

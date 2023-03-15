@@ -1,15 +1,31 @@
-# pkg-name
+# deto
 
-[![NPM version](https://img.shields.io/npm/v/pkg-name?color=a1b858&label=)](https://www.npmjs.com/package/pkg-name)
+> Create pull request description automatically from file changes
 
-## Sponsors
+## install
 
-<p align="center">
-  <a href="https://cdn.jsdelivr.net/gh/antfu/static/sponsors.svg">
-    <img src='https://cdn.jsdelivr.net/gh/antfu/static/sponsors.svg'/>
-  </a>
-</p>
+```sh
+npm i -g deto
+```
 
-## License
+## usage
 
-[MIT](./LICENSE) License © 2022 [Anthony Fu](https://github.com/antfu)
+You need an OpenAI API key. You can get one [here](https://platform.openai.com/account/api-keys) and set as the `OPENAI_API_KEY` environment variable.
+
+Then just run
+```sh
+deto
+```
+
+Or you can use `npx`:
+
+```sh
+npx deto
+```
+
+## options
+
+### templating
+```sh
+deto -t "Use the template ## what, ## why, ## how"
+```

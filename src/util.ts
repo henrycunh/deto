@@ -1,6 +1,9 @@
 export async function handle<T>(promise: Promise<T>): Promise<{
-    error: Error | null
-    data: T | null
+    error: Error
+    data: null
+} | {
+    error: null
+    data: T
 }> {
     try {
         const data = await promise
