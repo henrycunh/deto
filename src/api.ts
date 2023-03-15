@@ -1,12 +1,14 @@
 import { ChatGPTAPI } from 'chatgpt'
-
+import undici from 'undici'
 function createClient(systemMessage: string) {
     const client = new ChatGPTAPI({
         apiKey: process.env.OPENAI_API_KEY || '',
         systemMessage,
+        fetch: undici.fetch,
         completionParams: {
             temperature: 0,
         },
+
     })
     return client
 }
