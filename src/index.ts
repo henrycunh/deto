@@ -23,17 +23,34 @@ async function getGitDiff() {
         log(style`[Not in a git repository](red.bold)`)
         process.exit(1)
     }
-    // List all the files that have been changed compared to main
-    const gitDiff = await handle($('git diff --name-only main'))
+
+    // Check if we're on a branch
+    const gitBranch = await handle($('git branch --show-current'))
+    if (gitBranch.error) {
+        log(style`[Error getting current branch](red.bold)`)
+        log(style`[Error: ${gitBranch.error.message}](gray)`)
+        process.exit(1)
+    }
+
+    const currentBranch = gitBranch.data.trim()
+
+    // List all the files that have been changed
+    const gitDiff = await handle($(`git diff --name-only ${currentBranch}`))
     if (gitDiff.error) {
         log(style`[Error getting git diff](red.bold)`)
         log(style`[Error: ${gitDiff.error.message}](gray)`)
         process.exit(1)
     }
-    // Get the diff for each file
+
     const files = gitDiff.data.split('\n').filter(Boolean)
+    if (files.length === 0) {
+        log(style`[No changes found in the repository](red.bold)`)
+        process.exit(1)
+    }
+
+    // Get the diff for each file
     const gitDiffFiles = await Promise.all(files.map(async (file) => {
-        const gitDiffFile = await handle($(`git diff main -- ${file}`))
+        const gitDiffFile = await handle($(`git diff ${currentBranch} -- ${file}`))
         if (gitDiffFile.error) {
             log(style`[Error getting git diff for ${file}](red.bold)`)
             log(style`[Error: ${gitDiffFile.error.message}](gray)`)
