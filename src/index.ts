@@ -19,7 +19,7 @@ async function main() {
     const args = minimist(process.argv.slice(2))
 
     const numberOfCommits = args.last ? parseInt(args.last, 10) : undefined
-    const gitDiffFiles = await getGitDiff((numberOfCommits && numberOfCommits >= 1 && numberOfCommits <= MAX_COMMITS) ? numberOfCommits : undefined)
+    const gitDiffFiles = await getGitDiff((numberOfCommits && numberOfCommits >= 1 && numberOfCommits <= MAX_COMMITS) ? numberOfCommits + 1 : undefined)
 
     const limit = pLimit(10)
     intro('deto')
