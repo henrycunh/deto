@@ -29,3 +29,9 @@ npx deto
 ```sh
 deto -t "Use the template ## what, ## why, ## how"
 ```
+
+### number of commits
+```sh
+deto --last 4
+```
+<sup><strong>This will use only the last commits for the summarization</strong></sup>
